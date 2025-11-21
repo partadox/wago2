@@ -1,0 +1,797 @@
+{
+	"info": {
+		"_postman_id": "12345678-1234-1234-1234-123456789012",
+		"name": "wago",
+		"description": "Collection untuk testing WhatsApp Multi-Account Gateway API WAGO",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "12345678"
+	},
+	"item": [
+		{
+			"name": "Account Management",
+			"item": [
+				{
+					"name": "Create Account",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"account_id\": \"account1\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/accounts",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"accounts"
+							]
+						},
+						"description": "Membuat account WhatsApp baru dengan ID unik"
+					}
+				},
+				{
+					"name": "List All Accounts",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/accounts",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"accounts"
+							]
+						},
+						"description": "Mendapatkan daftar semua account dengan status koneksi"
+					}
+				},
+				{
+					"name": "Get Account Details",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/accounts/{{account_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"accounts",
+								"{{account_id}}"
+							]
+						},
+						"description": "Mendapatkan detail spesifik account termasuk status dan info device"
+					}
+				},
+				{
+					"name": "Delete Account",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/accounts/{{account_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"accounts",
+								"{{account_id}}"
+							]
+						},
+						"description": "Menghapus account dan membersihkan semua data terkait"
+					}
+				}
+			],
+			"description": "Endpoints untuk mengelola account WhatsApp"
+		},
+		{
+			"name": "Account Authentication",
+			"item": [
+				{
+					"name": "Login with QR Code",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/accounts/{{account_id}}/login",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"accounts",
+								"{{account_id}}",
+								"login"
+							]
+						},
+						"description": "Login account menggunakan QR code. Response akan berisi path ke QR code image"
+					}
+				},
+				{
+					"name": "Login with Phone Number",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"phone_number\": \"6281234567890\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/accounts/{{account_id}}/login-with-code",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"accounts",
+								"{{account_id}}",
+								"login-with-code"
+							]
+						},
+						"description": "Login account menggunakan pairing code yang dikirim ke nomor HP"
+					}
+				},
+				{
+					"name": "Logout Account",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/accounts/{{account_id}}/logout",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"accounts",
+								"{{account_id}}",
+								"logout"
+							]
+						},
+						"description": "Logout account dari WhatsApp Web"
+					}
+				},
+				{
+					"name": "Reconnect Account",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/accounts/{{account_id}}/reconnect",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"accounts",
+								"{{account_id}}",
+								"reconnect"
+							]
+						},
+						"description": "Reconnect account jika koneksi terputus"
+					}
+				}
+			],
+			"description": "Endpoints untuk authentication dan connection management"
+		},
+		{
+			"name": "Webhook Management",
+			"item": [
+				{
+					"name": "Set Account Webhook",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"webhook_url\": \"https://yourdomain.com/webhook\",\n  \"secret\": \"your-secret-key\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/accounts/{{account_id}}/webhook",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"accounts",
+								"{{account_id}}",
+								"webhook"
+							]
+						},
+						"description": "Set webhook URL dan secret untuk account tertentu"
+					}
+				},
+				{
+					"name": "Get Account Webhook",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/accounts/{{account_id}}/webhook",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"accounts",
+								"{{account_id}}",
+								"webhook"
+							]
+						},
+						"description": "Mendapatkan konfigurasi webhook untuk account tertentu"
+					}
+				}
+			],
+			"description": "Endpoints untuk konfigurasi webhook per account"
+		},
+		{
+			"name": "Send Messages",
+			"item": [
+				{
+					"name": "Send Text Message",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"account_id\": \"{{account_id}}\",\n  \"phone\": \"6281234567890\",\n  \"message\": \"Hello from Multi-Account Gateway!\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/send/message",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"send",
+								"message"
+							]
+						},
+						"description": "Mengirim pesan teks dari account tertentu"
+					}
+				},
+				{
+					"name": "Send Image",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "account_id",
+									"value": "{{account_id}}",
+									"type": "text"
+								},
+								{
+									"key": "phone",
+									"value": "6281234567890",
+									"type": "text"
+								},
+								{
+									"key": "caption",
+									"value": "Image sent from multi-account gateway",
+									"type": "text"
+								},
+								{
+									"key": "image",
+									"type": "file",
+									"src": []
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/send/image",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"send",
+								"image"
+							]
+						},
+						"description": "Mengirim gambar dengan caption dari account tertentu"
+					}
+				},
+				{
+					"name": "Send File",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "account_id",
+									"value": "{{account_id}}",
+									"type": "text"
+								},
+								{
+									"key": "phone",
+									"value": "6281234567890",
+									"type": "text"
+								},
+								{
+									"key": "file",
+									"type": "file",
+									"src": []
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/send/file",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"send",
+								"file"
+							]
+						},
+						"description": "Mengirim file dari account tertentu"
+					}
+				},
+				{
+					"name": "Send Video",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "account_id",
+									"value": "{{account_id}}",
+									"type": "text"
+								},
+								{
+									"key": "phone",
+									"value": "6281234567890",
+									"type": "text"
+								},
+								{
+									"key": "caption",
+									"value": "Video from multi-account gateway",
+									"type": "text"
+								},
+								{
+									"key": "video",
+									"type": "file",
+									"src": []
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/send/video",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"send",
+								"video"
+							]
+						},
+						"description": "Mengirim video dengan caption dari account tertentu"
+					}
+				},
+				{
+					"name": "Send Audio",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "account_id",
+									"value": "{{account_id}}",
+									"type": "text"
+								},
+								{
+									"key": "phone",
+									"value": "6281234567890",
+									"type": "text"
+								},
+								{
+									"key": "audio",
+									"type": "file",
+									"src": []
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/send/audio",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"send",
+								"audio"
+							]
+						},
+						"description": "Mengirim audio dari account tertentu"
+					}
+				},
+				{
+					"name": "Send Contact",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"account_id\": \"{{account_id}}\",\n  \"phone\": \"6281234567890\",\n  \"contact_name\": \"John Doe\",\n  \"contact_phone\": \"6289876543210\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/send/contact",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"send",
+								"contact"
+							]
+						},
+						"description": "Mengirim kontak dari account tertentu"
+					}
+				},
+				{
+					"name": "Send Link",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"account_id\": \"{{account_id}}\",\n  \"phone\": \"6281234567890\",\n  \"link\": \"https://github.com/aldinokemal/go-whatsapp-web-multidevice\",\n  \"caption\": \"Check out this awesome WhatsApp Gateway!\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/send/link",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"send",
+								"link"
+							]
+						},
+						"description": "Mengirim link dengan preview dari account tertentu"
+					}
+				},
+				{
+					"name": "Send Location",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"account_id\": \"{{account_id}}\",\n  \"phone\": \"6281234567890\",\n  \"latitude\": -6.2088,\n  \"longitude\": 106.8456,\n  \"name\": \"Jakarta, Indonesia\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/send/location",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"send",
+								"location"
+							]
+						},
+						"description": "Mengirim lokasi dari account tertentu"
+					}
+				},
+				{
+					"name": "Send Poll",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"account_id\": \"{{account_id}}\",\n  \"phone\": \"6281234567890\",\n  \"question\": \"What's your favorite programming language?\",\n  \"options\": [\"Go\", \"Python\", \"JavaScript\", \"Java\"],\n  \"max_answer\": 1\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/send/poll",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"send",
+								"poll"
+							]
+						},
+						"description": "Mengirim poll dari account tertentu"
+					}
+				}
+			],
+			"description": "Endpoints untuk mengirim berbagai jenis pesan dari account tertentu"
+		},
+		{
+			"name": "Chat Management",
+			"item": [
+				{
+					"name": "Get Chat List",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/chat/list?account_id={{account_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"chat",
+								"list"
+							],
+							"query": [
+								{
+									"key": "account_id",
+									"value": "{{account_id}}"
+								}
+							]
+						},
+						"description": "Mendapatkan daftar chat dari account tertentu"
+					}
+				},
+				{
+					"name": "Get Chat Messages",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/chat/messages?account_id={{account_id}}&phone=6281234567890&limit=50",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"chat",
+								"messages"
+							],
+							"query": [
+								{
+									"key": "account_id",
+									"value": "{{account_id}}"
+								},
+								{
+									"key": "phone",
+									"value": "6281234567890"
+								},
+								{
+									"key": "limit",
+									"value": "50"
+								}
+							]
+						},
+						"description": "Mendapatkan history pesan dengan nomor tertentu dari account tertentu"
+					}
+				}
+			],
+			"description": "Endpoints untuk manajemen chat dan history pesan"
+		},
+		{
+			"name": "Group Management",
+			"item": [
+				{
+					"name": "Get Group List",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/group/list?account_id={{account_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"group",
+								"list"
+							],
+							"query": [
+								{
+									"key": "account_id",
+									"value": "{{account_id}}"
+								}
+							]
+						},
+						"description": "Mendapatkan daftar group dari account tertentu"
+					}
+				},
+				{
+					"name": "Create Group",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"account_id\": \"{{account_id}}\",\n  \"name\": \"Test Group\",\n  \"participants\": [\"6281234567890\", \"6289876543210\"]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/group/create",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"group",
+								"create"
+							]
+						},
+						"description": "Membuat group baru dari account tertentu"
+					}
+				},
+				{
+					"name": "Get Group Info",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/group/info?account_id={{account_id}}&group_id=group_jid@g.us",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"group",
+								"info"
+							],
+							"query": [
+								{
+									"key": "account_id",
+									"value": "{{account_id}}"
+								},
+								{
+									"key": "group_id",
+									"value": "group_jid@g.us"
+								}
+							]
+						},
+						"description": "Mendapatkan informasi detail group"
+					}
+				}
+			],
+			"description": "Endpoints untuk manajemen group WhatsApp"
+		},
+		{
+			"name": "Presence & Status",
+			"item": [
+				{
+					"name": "Set Presence",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"account_id\": \"{{account_id}}\",\n  \"type\": \"available\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/send/presence",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"send",
+								"presence"
+							]
+						},
+						"description": "Set status presence (available, unavailable) untuk account"
+					}
+				},
+				{
+					"name": "Set Chat Presence",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"account_id\": \"{{account_id}}\",\n  \"phone\": \"6281234567890\",\n  \"state\": \"typing\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/send/chat-presence",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"send",
+								"chat-presence"
+							]
+						},
+						"description": "Set chat presence (typing, recording, paused) dalam chat tertentu"
+					}
+				}
+			],
+			"description": "Endpoints untuk mengatur status dan presence"
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:3000",
+			"type": "string"
+		},
+		{
+			"key": "account_id",
+			"value": "account1",
+			"type": "string"
+		}
+	],
+	"auth": {
+		"type": "basic",
+		"basic": [
+			{
+				"key": "username",
+				"value": "user1",
+				"type": "string"
+			},
+			{
+				"key": "password",
+				"value": "pass1",
+				"type": "string"
+			}
+		]
+	}
+}

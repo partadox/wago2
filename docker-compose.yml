@@ -1,0 +1,35 @@
+services:
+  whatsapp_go:
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "200k"
+        max-file: "10"
+    build:
+      context: .
+      dockerfile: ./docker/golang.Dockerfile
+    restart: "on-failure"
+    ports:
+      - "3000:3000"
+    env_file:
+      - src/.env
+    volumes:
+      # Persistent storage untuk multi-account data
+      - ./storages:/app/storages
+      # QR codes untuk login
+      - ./statics/qrcode:/app/statics/qrcode
+      # Sent items (temporary files)
+      - ./statics/senditems:/app/statics/senditems
+      # Media files
+      - ./statics/media:/app/statics/media
+    environment:
+      # Override environment variables jika diperlukan
+      - APP_PORT=3000
+      - TZ=Asia/Jakarta
+    # Health check untuk memastikan service berjalan
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

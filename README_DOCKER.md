@@ -143,6 +143,39 @@ wago2/
 
 ## 🔧 Troubleshooting
 
+### "No server available" when using environment variables in Coolify/Docker
+
+**Problem**: Service returns "no server available" when environment variables are set, but works without them.
+
+**Root Cause**: The `.env.example` file uses quotes around some values (like `DB_URI="file:..."`). When you copy these values AS-IS to Coolify environment variables, the quotes become part of the actual value, causing database connection to fail.
+
+**Solution**:
+```bash
+# ❌ WRONG (with quotes - copied from old .env.example)
+DB_URI="file:storages/whatsapp.db?_foreign_keys=on"
+
+# ✅ CORRECT (without quotes - use this in Coolify)
+DB_URI=file:storages/whatsapp.db?_foreign_keys=on
+```
+
+**Important Environment Variables for Coolify**:
+```bash
+# Required
+APP_PORT=3000
+DB_URI=file:storages/whatsapp.db?_foreign_keys=on
+DB_KEYS_URI=file::memory:?cache=shared&_foreign_keys=on
+
+# Optional
+APP_DEBUG=false
+APP_OS=Chrome
+WHATSAPP_AUTO_MARK_READ=false
+WHATSAPP_AUTO_DOWNLOAD_MEDIA=true
+WHATSAPP_ACCOUNT_VALIDATION=true
+WHATSAPP_CHAT_STORAGE=true
+```
+
+**Note**: Do NOT use quotes when setting environment variables in Docker/Coolify UI!
+
 ### Port already in use
 ```bash
 # Check port 3000

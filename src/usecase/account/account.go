@@ -186,7 +186,13 @@ func (u *AccountUsecase) LoginAccount(ctx context.Context, accountID string) (do
 	// Register client in manager
 	u.manager.SetClient(accountID, client, db)
 
-	// Connect to WhatsApp
+	// IMPORTANT: Get QR channel BEFORE connecting (required by whatsmeow)
+	qrChan, err := client.GetQRChannel(ctx)
+	if err != nil {
+		return domainAccount.LoginResponse{}, fmt.Errorf("failed to get QR channel: %w", err)
+	}
+
+	// Now connect to WhatsApp
 	if err := client.Connect(); err != nil {
 		return domainAccount.LoginResponse{}, fmt.Errorf("failed to connect: %w", err)
 	}
@@ -207,12 +213,6 @@ func (u *AccountUsecase) LoginAccount(ctx context.Context, accountID string) (do
 			Duration:  0,
 			Code:      "ALREADY_LOGGED_IN",
 		}, nil
-	}
-
-	// Generate QR code
-	qrChan, err := client.GetQRChannel(ctx)
-	if err != nil {
-		return domainAccount.LoginResponse{}, fmt.Errorf("failed to get QR channel: %w", err)
 	}
 
 	// Wait for QR code

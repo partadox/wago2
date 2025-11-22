@@ -147,7 +147,9 @@ wago2/
 
 **Problem**: Service returns "no server available" when environment variables are set, but works without them.
 
-**Root Cause**: The `.env.example` file uses quotes around some values (like `DB_URI="file:..."`). When you copy these values AS-IS to Coolify environment variables, the quotes become part of the actual value, causing database connection to fail.
+**Root Causes**:
+1. **Quotes in environment variables**: The old `.env.example` had quotes around values (like `DB_URI="file:..."`). When copied to Coolify, quotes become part of the value, causing database failures.
+2. **Basic Auth blocking health check**: When `APP_BASIC_AUTH` is set, it blocked the health check endpoint, making Coolify think the service is down.
 
 **Solution**:
 ```bash
@@ -172,9 +174,15 @@ WHATSAPP_AUTO_MARK_READ=false
 WHATSAPP_AUTO_DOWNLOAD_MEDIA=true
 WHATSAPP_ACCOUNT_VALIDATION=true
 WHATSAPP_CHAT_STORAGE=true
+
+# Security (Optional - jika ingin protect API)
+APP_BASIC_AUTH=user1:pass1
 ```
 
-**Note**: Do NOT use quotes when setting environment variables in Docker/Coolify UI!
+**Notes**:
+- ⚠️ Do NOT use quotes when setting environment variables in Docker/Coolify UI!
+- ✅ Health check endpoint `/health` tidak memerlukan autentikasi (aman untuk Coolify)
+- ✅ Jika menggunakan `APP_BASIC_AUTH`, semua endpoint API (kecuali `/health`) akan require autentikasi
 
 ### Port already in use
 ```bash

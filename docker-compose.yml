@@ -26,9 +26,9 @@ services:
       # Override environment variables jika diperlukan
       - APP_PORT=3000
       - TZ=Asia/Jakarta
-    # Health check untuk memastikan service berjalan
+    # Health check menggunakan endpoint /health (tidak perlu autentikasi)
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
       interval: 30s
       timeout: 10s
       retries: 3

@@ -74,6 +74,15 @@ func restServer(_ *cobra.Command, _ []string) {
 		AllowHeaders: "Origin, Content-Type, Accept",
 	}))
 
+	// Health check endpoint - BEFORE basic auth (tidak perlu autentikasi)
+	app.Get("/health", func(c *fiber.Ctx) error {
+		return c.Status(200).JSON(fiber.Map{
+			"status":  "ok",
+			"service": "whatsapp-gateway",
+			"version": config.AppVersion,
+		})
+	})
+
 	if len(config.AppBasicAuthCredential) > 0 {
 		account := make(map[string]string)
 		for _, basicAuth := range config.AppBasicAuthCredential {

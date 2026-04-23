@@ -21,6 +21,7 @@ import (
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/store"
 	"go.mau.fi/whatsmeow/store/sqlstore"
+	"go.mau.fi/whatsmeow/types"
 	waLog "go.mau.fi/whatsmeow/util/log"
 	"go.mau.fi/whatsmeow/types/events"
 )
@@ -593,8 +594,8 @@ func (u *AccountUsecase) forwardToWebhook(accountID string, webhook *domainAccou
 		}
 	}
 
-	payload := u.buildWebhookPayload(accountID, evt)
 	ctx := context.Background()
+	payload := u.buildWebhookPayload(ctx, accountID, evt)
 
 	if err := u.sendWebhookRequest(ctx, webhook, payload); err != nil {
 		logrus.Errorf("[%s] Failed to forward message to webhook %s: %v", accountID, webhook.URL, err)
@@ -603,17 +604,52 @@ func (u *AccountUsecase) forwardToWebhook(accountID string, webhook *domainAccou
 	}
 }
 
-func (u *AccountUsecase) buildWebhookPayload(accountID string, evt *events.Message) map[string]any {
+func (u *AccountUsecase) buildWebhookPayload(ctx context.Context, accountID string, evt *events.Message) map[string]any {
 	body := make(map[string]any)
 	body["account_id"] = accountID
 	body["event"] = "message"
-	body["sender_id"] = evt.Info.Sender.User
-	body["chat_id"] = evt.Info.Chat.User
-	body["from"] = evt.Info.SourceString()
 	body["timestamp"] = evt.Info.Timestamp.Format(time.RFC3339)
 
 	if evt.Info.PushName != "" {
 		body["pushname"] = evt.Info.PushName
+	}
+
+	// Resolve sender and chat: LID → phone number when possible
+	from := evt.Info.SourceString()
+	body["from"] = from
+	body["sender_id"] = evt.Info.Sender.User
+	body["chat_id"] = evt.Info.Chat.User
+
+	client := u.manager.GetClient(accountID)
+	if client != nil {
+		fromUser, fromGroup := from, ""
+		if strings.Contains(from, " in ") {
+			parts := strings.SplitN(from, " in ", 2)
+			fromUser, fromGroup = parts[0], parts[1]
+		}
+
+		if strings.HasSuffix(fromUser, "@lid") {
+			body["from_lid"] = fromUser
+			if lid, err := types.ParseJID(fromUser); err == nil {
+				if pn, err := client.Store.LIDs.GetPNForLID(ctx, lid); err == nil && !pn.IsEmpty() {
+					if fromGroup != "" {
+						body["from"] = fmt.Sprintf("%s in %s", pn.String(), fromGroup)
+					} else {
+						body["from"] = pn.String()
+					}
+					body["sender_id"] = pn.User
+				} else {
+					// LID not resolved yet — strip device suffix so desktop matches mobile format
+					// "165197394215002:47@lid" → "165197394215002@lid"
+					stripped := types.JID{User: lid.User, Server: lid.Server}
+					if fromGroup != "" {
+						body["from"] = fmt.Sprintf("%s in %s", stripped.String(), fromGroup)
+					} else {
+						body["from"] = stripped.String()
+					}
+				}
+			}
+		}
 	}
 
 	// Build message payload using the shared utility

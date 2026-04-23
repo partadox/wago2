@@ -1,8 +1,12 @@
 package account
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,6 +15,7 @@ import (
 	"github.com/aldinokemal/go-whatsapp-web-multidevice/config"
 	domainAccount "github.com/aldinokemal/go-whatsapp-web-multidevice/domains/account"
 	domainChatStorage "github.com/aldinokemal/go-whatsapp-web-multidevice/domains/chatstorage"
+	"github.com/aldinokemal/go-whatsapp-web-multidevice/pkg/utils"
 	"github.com/sirupsen/logrus"
 	"github.com/skip2/go-qrcode"
 	"go.mau.fi/whatsmeow"
@@ -576,7 +581,128 @@ func (u *AccountUsecase) handleEvent(ctx context.Context, accountID string, evt 
 }
 
 func (u *AccountUsecase) forwardToWebhook(accountID string, webhook *domainAccount.WebhookInfo, message interface{}) {
-	// TODO: Implement webhook forwarding
-	// This should be similar to the existing webhook implementation but per account
-	logrus.Debugf("[%s] Forwarding message to webhook: %s", accountID, webhook.URL)
+	evt, ok := message.(*events.Message)
+	if !ok {
+		return
+	}
+
+	// Skip EPHEMERAL_SYNC_RESPONSE protocol messages
+	if proto := evt.Message.GetProtocolMessage(); proto != nil {
+		if proto.GetType().String() == "EPHEMERAL_SYNC_RESPONSE" {
+			return
+		}
+	}
+
+	payload := u.buildWebhookPayload(accountID, evt)
+	ctx := context.Background()
+
+	if err := u.sendWebhookRequest(ctx, webhook, payload); err != nil {
+		logrus.Errorf("[%s] Failed to forward message to webhook %s: %v", accountID, webhook.URL, err)
+	} else {
+		logrus.Infof("[%s] Message forwarded to webhook %s", accountID, webhook.URL)
+	}
+}
+
+func (u *AccountUsecase) buildWebhookPayload(accountID string, evt *events.Message) map[string]any {
+	body := make(map[string]any)
+	body["account_id"] = accountID
+	body["event"] = "message"
+	body["sender_id"] = evt.Info.Sender.User
+	body["chat_id"] = evt.Info.Chat.User
+	body["from"] = evt.Info.SourceString()
+	body["timestamp"] = evt.Info.Timestamp.Format(time.RFC3339)
+
+	if evt.Info.PushName != "" {
+		body["pushname"] = evt.Info.PushName
+	}
+
+	// Build message payload using the shared utility
+	waMsg := utils.BuildEventMessage(evt)
+	if waMsg.ID != "" {
+		body["message"] = waMsg
+	}
+
+	waReaction := utils.BuildEventReaction(evt)
+	if waReaction.Message != "" {
+		body["reaction"] = waReaction
+	}
+
+	if utils.BuildForwarded(evt) {
+		body["forwarded"] = true
+	}
+
+	// Handle protocol messages (revoke, edit)
+	if proto := evt.Message.GetProtocolMessage(); proto != nil {
+		switch proto.GetType().String() {
+		case "REVOKE":
+			body["action"] = "message_revoked"
+			if key := proto.GetKey(); key != nil {
+				body["revoked_message_id"] = key.GetID()
+				body["revoked_from_me"] = key.GetFromMe()
+			}
+		case "MESSAGE_EDIT":
+			body["action"] = "message_edited"
+			if key := proto.GetKey(); key != nil {
+				body["original_message_id"] = key.GetID()
+			}
+			if edited := proto.GetEditedMessage(); edited != nil {
+				if text := edited.GetConversation(); text != "" {
+					body["edited_text"] = text
+				} else if ext := edited.GetExtendedTextMessage(); ext != nil {
+					body["edited_text"] = ext.GetText()
+				}
+			}
+		}
+	}
+
+	return body
+}
+
+func (u *AccountUsecase) sendWebhookRequest(ctx context.Context, webhook *domainAccount.WebhookInfo, payload map[string]any) error {
+	postBody, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal payload: %w", err)
+	}
+
+	secret := webhook.Secret
+	if secret == "" {
+		secret = config.WhatsappWebhookSecret
+	}
+
+	signature, err := utils.GetMessageDigestOrSignature(postBody, []byte(secret))
+	if err != nil {
+		return fmt.Errorf("failed to generate signature: %w", err)
+	}
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, webhook.URL, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Hub-Signature-256", fmt.Sprintf("sha256=%s", signature))
+
+	var lastErr error
+	sleepDuration := time.Second
+
+	for attempt := 0; attempt < 5; attempt++ {
+		req.Body = io.NopCloser(bytes.NewBuffer(postBody))
+		resp, reqErr := client.Do(req)
+		if reqErr == nil {
+			resp.Body.Close()
+			if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+				return nil
+			}
+			lastErr = fmt.Errorf("webhook returned status %d", resp.StatusCode)
+		} else {
+			lastErr = reqErr
+		}
+		logrus.Warnf("[%s] Webhook attempt %d/5 failed: %v", webhook.URL, attempt+1, lastErr)
+		if attempt < 4 {
+			time.Sleep(sleepDuration)
+			sleepDuration *= 2
+		}
+	}
+
+	return fmt.Errorf("webhook failed after 5 attempts: %w", lastErr)
 }

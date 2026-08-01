@@ -253,7 +253,18 @@ func (u *AccountUsecase) LoginAccount(ctx context.Context, accountID string) (do
 				Code: "SUCCESS",
 			}, nil
 
+		case whatsmeow.QRChannelClientOutdated.Event:
+			return domainAccount.LoginResponse{}, fmt.Errorf(
+				"WhatsApp rejected this client because its version is outdated, update the go.mau.fi/whatsmeow dependency and rebuild")
+
+		case whatsmeow.QRChannelEventPasskeyRequest, whatsmeow.QRChannelEventPasskeyResponse:
+			return domainAccount.LoginResponse{}, fmt.Errorf(
+				"WhatsApp requested passkey pairing (%s), which this app does not implement", evt.Event)
+
 		default:
+			if evt.Error != nil {
+				return domainAccount.LoginResponse{}, fmt.Errorf("QR pairing failed (%s): %w", evt.Event, evt.Error)
+			}
 			return domainAccount.LoginResponse{}, fmt.Errorf("unexpected QR event: %s", evt.Event)
 		}
 
@@ -565,6 +576,22 @@ func (u *AccountUsecase) handleEvent(ctx context.Context, accountID string, evt 
 		acc.PhoneNumber = strings.Split(e.ID.String(), "@")[0]
 		acc.LastConnected = time.Now()
 		u.repo.UpdateAccount(acc)
+
+	case *events.ClientOutdated:
+		logrus.Errorf("[%s] WhatsApp rejected this client because its version is outdated. "+
+			"Update the go.mau.fi/whatsmeow dependency (cd src && go get go.mau.fi/whatsmeow@latest) and rebuild.", accountID)
+
+	case *events.ConnectFailure:
+		switch e.Reason {
+		case events.ConnectFailureClientOutdated, events.ConnectFailureBadUserAgent:
+			logrus.Errorf("[%s] Connection refused, client version/user agent is outdated (reason %d). "+
+				"Update whatsmeow and rebuild.", accountID, e.Reason)
+		default:
+			logrus.Errorf("[%s] Connection to WhatsApp failed (reason %d: %s)", accountID, e.Reason, e.Message)
+		}
+
+	case *events.TemporaryBan:
+		logrus.Errorf("[%s] Account temporarily banned by WhatsApp (code %d), expires in %s", accountID, e.Code, e.Expire)
 
 	case *events.Message:
 		// Store message in chat storage

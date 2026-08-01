@@ -467,6 +467,38 @@ func handler(ctx context.Context, rawEvt any, chatStorageRepo domainChatStorage.
 		handleAppState(ctx, evt)
 	case *events.GroupInfo:
 		handleGroupInfo(ctx, evt)
+	case *events.ClientOutdated:
+		handleClientOutdated()
+	case *events.ConnectFailure:
+		handleConnectFailure(evt)
+	case *events.TemporaryBan:
+		log.Errorf("Account temporarily banned by WhatsApp (code %d), expires in %s", evt.Code, evt.Expire)
+	case *events.CATRefreshError:
+		log.Errorf("Failed to refresh CAT (client auth token): %v", evt.Error)
+	}
+}
+
+// handleClientOutdated reports that WhatsApp rejected the client version. Recovering from this
+// requires updating go.mau.fi/whatsmeow, since the version is baked into the library.
+func handleClientOutdated() {
+	log.Errorf("WhatsApp rejected this client because its version is outdated. " +
+		"Update the go.mau.fi/whatsmeow dependency (cd src && go get go.mau.fi/whatsmeow@latest) and rebuild.")
+}
+
+// handleConnectFailure logs why WhatsApp refused the connection. Without this the failure is
+// silent and the app just looks stuck as auto-reconnect keeps retrying.
+func handleConnectFailure(evt *events.ConnectFailure) {
+	switch evt.Reason {
+	case events.ConnectFailureClientOutdated:
+		handleClientOutdated()
+	case events.ConnectFailureBadUserAgent:
+		log.Errorf("WhatsApp rejected the client user agent (409). Update whatsmeow and rebuild.")
+	case events.ConnectFailureTempBanned:
+		log.Errorf("Connection refused: account temporarily banned (%s)", evt.Message)
+	case events.ConnectFailureMainDeviceGone, events.ConnectFailureLoggedOut, events.ConnectFailureUnknownLogout:
+		log.Errorf("Connection refused, session is no longer valid (reason %d: %s). Re-login is required.", evt.Reason, evt.Message)
+	default:
+		log.Errorf("Connection to WhatsApp failed (reason %d: %s)", evt.Reason, evt.Message)
 	}
 }
 

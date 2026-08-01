@@ -59,7 +59,8 @@ func (service *serviceApp) Login(_ context.Context) (response domainApp.LoginRes
 	// Disconnect for reconnecting
 	client.Disconnect()
 
-	chImage := make(chan string)
+	// Buffered so the QR goroutine never blocks if Connect() fails and nobody receives.
+	chImage := make(chan string, 1)
 
 	logrus.Info("[DEBUG] Attempting to get QR channel...")
 	ch, err := client.GetQRChannel(context.Background())
@@ -80,10 +81,15 @@ func (service *serviceApp) Login(_ context.Context) (response domainApp.LoginRes
 	} else {
 		logrus.Info("[DEBUG] QR channel obtained successfully")
 		go func() {
+			// chImage is closed once the QR channel ends so the receiver below never blocks
+			// forever when pairing fails before any code is emitted.
+			defer close(chImage)
+			qrSent := false
 			for evt := range ch {
 				response.Code = evt.Code
 				response.Duration = evt.Timeout / time.Second / 2
-				if evt.Event == "code" {
+				switch evt.Event {
+				case whatsmeow.QRChannelEventCode:
 					qrPath := fmt.Sprintf("%s/scan-qr-%s.png", config.PathQrCode, fiberUtils.UUIDv4())
 					err = qrcode.WriteFile(evt.Code, qrcode.Medium, 512, qrPath)
 					if err != nil {
@@ -99,9 +105,20 @@ func (service *serviceApp) Login(_ context.Context) (response domainApp.LoginRes
 							}
 						}
 					}()
-					chImage <- qrPath
-				} else {
-					logrus.Error("error when get qrCode", evt.Event, evt.Error)
+					// Only the first code is handed to the caller; later refreshes just rotate the file.
+					if !qrSent {
+						qrSent = true
+						chImage <- qrPath
+					}
+				case whatsmeow.QRChannelClientOutdated.Event:
+					logrus.Error("WhatsApp rejected this client because its version is outdated. " +
+						"Update the go.mau.fi/whatsmeow dependency (cd src && go get go.mau.fi/whatsmeow@latest) and rebuild.")
+				case whatsmeow.QRChannelEventPasskeyRequest, whatsmeow.QRChannelEventPasskeyResponse:
+					logrus.Errorf("WhatsApp requested passkey pairing (%s), which this app does not implement", evt.Event)
+				case whatsmeow.QRChannelSuccess.Event:
+					logrus.Info("QR pairing succeeded")
+				default:
+					logrus.Error("error when get qrCode ", evt.Event, " ", evt.Error)
 				}
 			}
 		}()
@@ -112,7 +129,13 @@ func (service *serviceApp) Login(_ context.Context) (response domainApp.LoginRes
 		logger.Error("Error when connect to whatsapp", err)
 		return response, pkgError.ErrReconnect
 	}
-	response.ImagePath = <-chImage
+	qrPath, ok := <-chImage
+	if !ok {
+		// QR channel ended without emitting a code (outdated client, pair error, timeout, ...).
+		logrus.Error("QR channel closed before a QR code was produced")
+		return response, pkgError.ErrQrChannel
+	}
+	response.ImagePath = qrPath
 
 	// [DEBUG] Verify connection state and sync global client
 	logrus.Infof("[DEBUG] Login connection established - IsConnected: %v, IsLoggedIn: %v",

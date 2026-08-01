@@ -5,10 +5,36 @@ Dokumen ini berisi konteks penting yang perlu dipelajari setiap kali library `go
 ## Versi Saat Ini
 
 ```
-go.mau.fi/whatsmeow v0.0.0-20260327181659-02ec817e7cf4
+go.mau.fi/whatsmeow v0.0.0-20260730092514-662ad1dc6900
 ```
 
 Cek versi terbaru: https://pkg.go.dev/go.mau.fi/whatsmeow
+
+---
+
+## Penyebab #1 Aplikasi Tiba-Tiba Error: Versi Client Kedaluwarsa
+
+Nomor versi WhatsApp Web **hardcoded di dalam library**, di `store/clientpayload.go`:
+
+```go
+var waVersion = WAVersionContainer{2, 3000, 1044142122}
+```
+
+Kalau WhatsApp menaikkan versi minimum di sisi server, semua client dengan versi lama
+langsung ditolak. Gejalanya:
+
+- Akun yang sudah login → `events.ConnectFailure` dengan `Reason = 405` (`ConnectFailureClientOutdated`)
+- Saat scan QR → `events.ClientOutdated`, QR channel mengirim event `err-client-outdated`
+
+**Perbaikannya cuma satu: update library-nya.** Tidak ada workaround di sisi aplikasi,
+karena versi tidak bisa di-override dari luar (project ini tidak memanggil `SetWAVersion`).
+
+```bash
+cd src && go get go.mau.fi/whatsmeow@latest && go mod tidy && go build ./...
+```
+
+Sejak update 2026-08-01 event-event ini sudah di-log eksplisit (lihat `handleConnectFailure`
+di `src/infrastructure/whatsapp/init.go`), jadi kalau terjadi lagi langsung kelihatan di log.
 
 ---
 
@@ -73,6 +99,18 @@ case *events.HistorySync
 case *events.AppState
 case *events.GroupInfo     // ← untuk group webhook
 ```
+
+Event diagnostik yang juga di-handle (ditambahkan 2026-08-01):
+
+```go
+case *events.ClientOutdated  // versi client ditolak WhatsApp
+case *events.ConnectFailure  // koneksi ditolak, ada field Reason + Message
+case *events.TemporaryBan    // akun kena ban sementara
+case *events.CATRefreshError // gagal refresh client auth token
+```
+
+Sebelumnya event-event ini tidak di-handle sama sekali, jadi saat WhatsApp menolak koneksi
+aplikasi hanya terlihat "diam" sementara auto-reconnect terus mencoba ulang.
 
 **Apa yang perlu dicek saat update:**
 - Apakah ada event type baru yang relevan (misal: `events.FBMessage` untuk Facebook-linked accounts)
@@ -161,7 +199,44 @@ err = client.Connect()
 
 ---
 
-### 6. ReceiptType Constants
+### 6. Migrasi Skema Database
+
+`sqlstore.New()` menjalankan `container.Upgrade()` otomatis, jadi migrasi berlaku begitu
+aplikasi start — termasuk untuk `DB_KEYS_URI` dan tiap database per-account di
+`storages/accounts/<nama>/`.
+
+Cek versi skema sebuah database SQLite:
+
+```bash
+sqlite3 storages/whatsapp.db "SELECT version FROM whatsmeow_version;"
+```
+
+Migrasi butuh foreign key aktif di SQLite — pastikan URI-nya pakai `?_foreign_keys=on`
+(sudah jadi default di `config/settings.go`).
+
+**Perhatian:** migrasi jalan satu arah. Kalau perlu rollback ke versi library lama,
+database harus di-restore dari backup — jadi backup folder `storages/` dulu sebelum update.
+
+---
+
+### 7. Passkey Pairing (belum diimplementasikan)
+
+Versi `20260730` menambahkan alur pairing berbasis passkey/WebAuthn:
+
+```go
+events.PairPasskeyRequest / PairPasskeyError / PairPasskeyConfirmation
+client.SendPasskeyResponse(ctx, resp)
+client.SendPasskeyConfirmation(ctx)
+```
+
+QR channel bisa mengirim event `passkey-request` dan `passkey-confirmation`. Aplikasi ini
+**belum** mengimplementasikannya (butuh authenticator WebAuthn), tapi sudah melaporkan
+event tersebut dengan pesan yang jelas alih-alih diam. Kalau suatu saat WhatsApp mewajibkan
+passkey untuk linking device, alur ini harus dibangun.
+
+---
+
+### 8. ReceiptType Constants
 
 Dipakai di `event_receipt.go` untuk filter webhook:
 
@@ -198,7 +273,44 @@ grep -rn "events\." src/infrastructure/whatsapp/init.go
 ```
 Bandingkan dengan `types/events/events.go` di versi baru.
 
-### Langkah 4 — Test Fungsional
+### Langkah 4 — Diff API Antar Versi
+
+Build yang sukses tidak menjamin aman, karena perubahan bisa bersifat runtime. Bandingkan
+langsung dua versi di module cache:
+
+```bash
+OLD=$(go env GOMODCACHE)/go.mau.fi/whatsmeow@<versi-lama>
+NEW=$(go env GOMODCACHE)/go.mau.fi/whatsmeow@<versi-baru>
+
+# Versi client WA (paling penting)
+diff "$OLD/store/clientpayload.go" "$NEW/store/clientpayload.go"
+
+# Semua method Client — cek ada yang hilang/berubah signature
+sig(){ grep -rh "^func (cli \*Client)" "$1"/*.go | sed 's/ {$//' | sort; }
+diff <(sig "$OLD") <(sig "$NEW")
+
+# Event types
+diff "$OLD/types/events/events.go" "$NEW/types/events/events.go"
+
+# Migrasi database baru
+diff -rq "$OLD/store/sqlstore/upgrades" "$NEW/store/sqlstore/upgrades"
+```
+
+### Langkah 5 — Smoke Test Tanpa Menyentuh Sesi Produksi
+
+Jalankan dengan database kosong sementara, lalu minta QR. Kalau QR terbit, berarti
+WhatsApp menerima versi client-nya:
+
+```bash
+cd src && go build -o /tmp/wa-test . && cd /tmp
+./wa-test rest --port=3899 --db-uri="file:/tmp/wa-test.db?_foreign_keys=on" &
+curl -s http://localhost:3899/app/login
+```
+
+Jangan pakai database produksi untuk tes ini — dua koneksi dengan kredensial device yang
+sama akan memicu `StreamReplaced` dan memutus instance yang sedang jalan.
+
+### Langkah 6 — Test Fungsional
 Setelah rebuild Docker:
 1. Login akun via QR
 2. Kirim pesan text dari **mobile** → cek webhook diterima
@@ -213,6 +325,7 @@ Setelah rebuild Docker:
 
 | Tanggal | Versi whatsmeow | Perubahan / Catatan |
 |---------|-----------------|---------------------|
+| 2026-08-01 | `v0.0.0-20260730092514` | Versi client WA naik `2.3000.1035920091` → `2.3000.1044142122` (penyebab error koneksi). Migrasi DB v13→v14 (tabel `whatsmeow_nct_salt`, jalan otomatis). Tidak ada breaking change di level compile — semua perubahan API bersifat additive. Ditambahkan handler `ClientOutdated`/`ConnectFailure`/`TemporaryBan`/`CATRefreshError`, dan fix hang di `/app/login` saat QR channel tutup tanpa emit code |
 | 2026-04-08 | `v0.0.0-20260327181659` | Update library; per-account `forwardToWebhook` diimplementasikan (sebelumnya stub); fix LID resolution untuk sender dari WhatsApp Desktop (device suffix `:47` di-strip agar konsisten dengan Mobile) |
 | ~2025-11 | `v0.0.0-20251116104239` | Versi sebelumnya |
 

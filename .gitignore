@@ -12,3 +12,5 @@ storages
 bin
 .playwright-mcp
 .cursor/mcp.json
+CLAUDE.md
+context_wa_broadcast_aais-pusat/*
